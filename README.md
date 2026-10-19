@@ -157,133 +157,132 @@ $ python -c "from tools import create_fit_card; from utils.data_loader import lo
 
 ## Run Log — Before
 
-<!-- Five criteria, five tries each, in this exact format.
-
-     Five, because your criteria are written out of five. Mark each try PASS
-     or FAIL, count the passes, and read that count against your target — a
-     row targeting 4 of 5 with three PASS cells is MISSED (3/5).
-
-     `python run_eval.py --label before` runs everything and writes the table
-     into results/. Paste it here and fill in the verdicts. -->
+**Status: pending the required five real trials per criterion.** I did not mark
+these rows PASS or FAIL because this workspace has no MCP SDK, `python-dotenv`,
+`google-genai`, or configured model key. The local checks below used stubs and
+are not substitutes for `python run_eval.py --label before`.
 
 | Criterion | Target | Try 1 | Try 2 | Try 3 | Try 4 | Try 5 | Verdict |
-|---|---|---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |  |  |
+|---|---:|---|---|---|---|---|---|
+| 1. Matching query completes all three tools | 4/5 | Not run | Not run | Not run | Not run | Not run | Pending |
+| 2. Impossible query stops before second tool | 5/5 | Not run | Not run | Not run | Not run | Not run | Pending |
+| 3. Selected item reaches styling tool | 5/5 | Not run | Not run | Not run | Not run | Not run | Pending |
+| 4. Fit card content | 4/5 | Not run | Not run | Not run | Not run | Not run | Pending |
+| 5. Search respects price ceiling | 5/5 | Not run | Not run | Not run | Not run | Not run | Pending |
 
-**Real output from one try**, pasted as text, naming the file and function
-that produced it:
+**Local implementation checks (mocked; not the five-trial run):** a controlled
+Python harness substituted the MCP client's return value and model tools. It
+verified the happy path completed, the empty-search branch skipped later tools,
+the exact selected listing object was passed to `suggest_outfit`, all four
+search results for a `$25` ceiling were at or below `$25`, and a forced
+`ModelUnavailable` exception produced a session error instead of a traceback.
+These checks establish basic control flow only; they do not measure real MCP or
+model behavior.
 
-```
-
-```
+**Real `run_eval.py` output:** not available yet. After installing
+`requirements.txt`, setting up `.env`, and confirming `python test.py` passes,
+run `python run_eval.py --label before`, then copy its table and selected raw
+output here. Commit the generated file under `results/`.
 
 ---
 
 ## Verdicts and Diagnoses
 
-<!-- MET or MISSED per criterion against LAST UNIT's target, plus a sentence on
-     how you decided.
-
-     Then, for every miss: which of the four places it happened — a tool, the
-     loop's branch, the session, or the model's output — AND the mechanism.
-
-     Not a diagnosis:  "The fit card was bad."
-     A diagnosis:      "The fit card criterion missed on 2 of 5 items. Both had
-                        an empty brand field. My prompt puts the brand in the
-                        first sentence, so the card opened with a blank and read
-                        like a fragment. The tool worked; the prompt assumed a
-                        field that isn't always there."
-
-     Look for a pattern. Three misses on the same tool is one problem, not
-     three. -->
+No criterion has an official verdict yet because the required five live trials
+have not been run. The local checks above are not counted toward the targets.
 
 | # | Criterion | Target | Verdict | How I decided |
-|---|---|---|---|---|
-| 1 |  |  |  |  |
-| 2 |  |  |  |  |
-| 3 |  |  |  |  |
-| 4 |  |  |  |  |
-| 5 |  |  |  |  |
+|---|---|---:|---|---|
+| 1 | Matching query completes all three tools | 4/5 | Pending | Requires five real agent runs. |
+| 2 | Impossible query stops before second tool | 5/5 | Pending | The mocked branch check passed once; the five-trial target remains unmeasured. |
+| 3 | Selected item reaches styling tool | 5/5 | Pending | The identity check passed once with a local spy; the five-trial target remains unmeasured. |
+| 4 | Fit card content | 4/5 | Pending | Requires real model-generated cards to assess content and sentence count. |
+| 5 | Search respects price ceiling | 5/5 | Pending | The mocked local search check passed once; the five-trial target remains unmeasured. |
 
-**Diagnoses**
-
-
+**Diagnoses:** pending the real run log. No measured misses can be diagnosed
+honestly until the five trials for each criterion are recorded.
 
 ---
 
 ## Loop Trace
 
-<!-- One full run, printed step by step, with the MCP call visible in it.
+The trace hooks are in `agent.py::run_agent`. The following is a control-flow
+check made with a stubbed MCP client and stubbed model tools; it is **not** a
+trace from a live MCP connection or model run. Run
+`python app.py ask 'vintage graphic tee under $30' --trace` after local setup and
+replace these examples with the terminal output.
 
-     `python app.py ask '...' --trace` once you've added the trace.step()
-     calls in Milestone 2.
-
-     Worth pasting BOTH the happy path and the empty-search path. The empty
-     one should be visibly shorter, because it stops. If your two traces are
-     the same length, your branch isn't working — and this is the fastest way
-     anyone will ever find that out. -->
-
-**Happy path**
+**Happy path (stubbed):**
 
 ```
-
+[1] parse_query
+      in:  dict with keys: query
+      out: dict with keys: description, size, max_price
+[2] search_listings (via MCP)
+      in:  dict with keys: description, size, max_price
+      out: 10 items: Graphic Tee — 2003 Tour Bootleg Style, Vintage Band Tee — Faded Grey, Vintage Graphic Hoodie — Faded Black … +7 more
+[3] suggest_outfit
+      in:  dict with keys: selected_item, wardrobe
+      out: jeans and white sneakers
+[4] create_fit_card
+      in:  dict with keys: outfit, selected_item
+      out: Graphic Tee — 2003 Tour Bootleg Style costs $24.0 on depop. Easy streetwear.
 ```
 
-**Empty search**
+**Empty search (stubbed):**
 
 ```
-
+[1] parse_query
+      in:  dict with keys: query
+      out: dict with keys: description, size, max_price
+[2] search_listings (via MCP)
+      in:  dict with keys: description, size, max_price
+      out: [] (empty)
+[3] empty_search_branch
+      out: I couldn't find a listing that matches. Try changing the item keywords, size, or maximum price.
+      →    no results; later tools skipped
 ```
 
-**On the MCP move:** <!-- what changed in your code, and whether anything
-behaved differently afterwards. If the rewire didn't work, say exactly where it
-broke — the error text and the last thing that worked. That earns the point in
-full. -->
-
-
+**On the MCP move:** `mcp_server.py` now registers `search_listings`, and
+`agent.py` calls it through `mcp_client.call_tool`. The code path was exercised
+with a local replacement for `call_tool`, but the MCP protocol connection could
+not be tested here because the MCP SDK is not installed. Confirm it on your
+machine with `python mcp_client.py` and then capture a live `--trace` run.
 
 ---
 
 ## The Improvement
 
-<!-- What you changed, why your diagnosis pointed at it, and the after-run in
-     the same table format. One change, measured properly.
-
-     `python run_eval.py --label after` -->
-
-**What I changed:**
-
-**Which failure it was meant to fix:**
+The agent now catches `ModelUnavailable` from either model-backed tool, records
+a user-readable error in the session, and stops before trying the next step.
+A forced exception in a local stub check confirmed this path returns cleanly.
+This implementation change was made before the required baseline evaluation,
+so it has not yet been selected from a measured diagnosis or evaluated as the
+assignment's one improvement.
 
 ### Run Log — After
 
 | Criterion | Target | Try 1 | Try 2 | Try 3 | Try 4 | Try 5 | Verdict |
-|---|---|---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |  |  |
+|---|---:|---|---|---|---|---|---|
+| 1. Matching query completes all three tools | 4/5 | Not run | Not run | Not run | Not run | Not run | Pending |
+| 2. Impossible query stops before second tool | 5/5 | Not run | Not run | Not run | Not run | Not run | Pending |
+| 3. Selected item reaches styling tool | 5/5 | Not run | Not run | Not run | Not run | Not run | Pending |
+| 4. Fit card content | 4/5 | Not run | Not run | Not run | Not run | Not run | Pending |
+| 5. Search respects price ceiling | 5/5 | Not run | Not run | Not run | Not run | Not run | Pending |
 
-**Did it help, and how do I know:**
-
-<!-- If it made things worse, say that. Honestly reported, that earns full
-     credit and is more interesting than one that worked. -->
-
-
+**Did it help, and how do I know:** not measured. Run and save the baseline,
+choose one change based on its diagnoses, then run
+`python run_eval.py --label after` and compare the two actual logs.
 
 ---
 
 ## What's Still Broken
 
-<!-- For each criterion still missed: what you'd do, and why you stopped where
-     you did. "I ran out of time" is fine if it's true. Pretending nothing is
-     left is not. -->
-
+- The live MCP server/client connection still needs to be checked locally.
+- The three failure modes and the five criteria still need real runs; only the
+  empty-search and forced model-unavailable paths were exercised with stubs.
+- The before/after logs, final verdicts, evidence-based diagnoses, and measured
+  improvement are pending those runs.
 
 
 <!-- ═════════════════════════════════════════════════════════════════════
