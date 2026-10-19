@@ -132,30 +132,56 @@ def run_agent(query: str, wardrobe: dict) -> dict:
     description = " ".join(description.split()).strip(" ,.-")
     session["parsed"] = {"description": description, "size": size, "max_price": max_price}
 
+    trace.step("parse_query", inputs={"query": query}, returned=session["parsed"])
+
     iteration = 0
     iteration += 1
     trace.check_iterations(iteration)
-    results = search_listings(description, size=size, max_price=max_price)
+    from mcp_client import call_tool, MCPError
+    try:
+        results = call_tool("search_listings", {
+            "description": description,
+            "size": size,
+            "max_price": max_price,
+        })
+    except MCPError as exc:
+        session["error"] = str(exc)
+        trace.step("search_listings (via MCP)", inputs=session["parsed"], returned=str(exc), note="MCP call failed; stopping")
+        return session
     session["search_results"] = results
+    trace.step("search_listings (via MCP)", inputs=session["parsed"], returned=results)
     if not results:
         session["error"] = (
             "I couldn't find a listing that matches. Try changing the item keywords, "
             "size, or maximum price."
         )
+        trace.step("empty_search_branch", returned=session["error"], note="no results; later tools skipped")
         return session
 
     session["selected_item"] = results[0]
     iteration += 1
     trace.check_iterations(iteration)
-    session["outfit_suggestion"] = suggest_outfit(
-        session["selected_item"], session["wardrobe"]
-    )
+    try:
+        session["outfit_suggestion"] = suggest_outfit(
+            session["selected_item"], session["wardrobe"]
+        )
+    except ModelUnavailable as exc:
+        session["error"] = f"The model couldn't be reached while creating an outfit suggestion. {exc}"
+        trace.step("suggest_outfit", inputs={"selected_item": session["selected_item"], "wardrobe": session["wardrobe"]}, returned=str(exc), note="model unavailable; stopping")
+        return session
+    trace.step("suggest_outfit", inputs={"selected_item": session["selected_item"], "wardrobe": session["wardrobe"]}, returned=session["outfit_suggestion"])
 
     iteration += 1
     trace.check_iterations(iteration)
-    session["fit_card"] = create_fit_card(
-        session["outfit_suggestion"], session["selected_item"]
-    )
+    try:
+        session["fit_card"] = create_fit_card(
+            session["outfit_suggestion"], session["selected_item"]
+        )
+    except ModelUnavailable as exc:
+        session["error"] = f"The model couldn't be reached while creating the fit card. {exc}"
+        trace.step("create_fit_card", inputs={"selected_item": session["selected_item"]}, returned=str(exc), note="model unavailable; stopping")
+        return session
+    trace.step("create_fit_card", inputs={"outfit": session["outfit_suggestion"], "selected_item": session["selected_item"]}, returned=session["fit_card"])
     return session
 
 
@@ -192,4 +218,5 @@ if __name__ == "__main__":
         "\nThe second one should stop before the fit card. If both paths look "
         "the same,\nthe branch isn't doing anything yet."
     )
+
 
