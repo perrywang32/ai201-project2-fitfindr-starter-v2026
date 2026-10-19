@@ -41,7 +41,7 @@
 
 <!-- Three or four sentences: what a user asks for, and what they get back. -->
 
-
+FitFindr takes a plain-language request for a secondhand clothing item, such as a vintage graphic tee under $30 in size M. It searches the listings by keywords, size, and maximum price, then chooses the highest-scoring match. It uses the shopper's wardrobe to suggest outfit combinations and writes a short social caption for the find. If no listing matches, it stops and tells the shopper which parts of the request to change.
 
 ---
 
@@ -59,24 +59,27 @@
 
 ### `search_listings`
 
-- **What it does:**
-- **Inputs:** <!-- name and type each: `max_price` (float), not "a price" -->
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Filters clothing listings by price and size, then ranks remaining listings by weighted keyword overlap. Title matches have the most weight, followed by style tags.
+- **Inputs:** `description` (`str`), `size` (`str | None`), `max_price` (`float | None`). A slash size such as `S/M` is treated as containing either size.
+- **Returns:** A list of matching listing dictionaries. Each dictionary has `id`, `title`, `description`, `category`, `style_tags` (list), `size`, `condition`, `price` (float), `colors` (list), `brand` (string or `None`), and `platform`. Results are ordered by keyword score and capped at `config.SEARCH_RESULT_LIMIT`.
+- **When it has nothing:** An empty list (`[]`) when no listing meets the filters and has at least one description keyword match.
 
 ### `suggest_outfit`
 
-- **What it does:**
-- **Inputs:**
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Uses the model to suggest one or two outfits around the selected thrift item, using wardrobe pieces when available.
+- **Inputs:** `new_item` (`dict` with listing fields such as `title`, `category`, `size`, and `price`); `wardrobe` (`dict` with an `items` list).
+- **Returns:** A non-empty styling suggestion string. With wardrobe items, it names pieces from that wardrobe; with an empty wardrobe, it gives general advice.
+- **When it has nothing:** It returns a general styling fallback if the model responds with an empty string; model connection failures are surfaced by the model adapter.
+
+
 
 ### `create_fit_card`
 
-- **What it does:**
-- **Inputs:**
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** Uses the model to write a social caption for the selected item and outfit suggestion.
+- **Inputs:** `outfit` (`str`); `new_item` (`dict` with `title`, `price`, and `platform`).
+- **Returns:** A non-empty caption intended to be two to four sentences and mention the item, price, platform, and outfit vibe.
+- **When it has nothing:** If `outfit` is empty or whitespace, it returns an explanatory message without calling the model; an empty model response gets a short fallback caption.
+
 
 ---
 
