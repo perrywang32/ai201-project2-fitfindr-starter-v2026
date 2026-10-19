@@ -107,8 +107,55 @@ def run_agent(query: str, wardrobe: dict) -> dict:
     """
     session = new_session(query, wardrobe)
 
-    # TODO: delete these two lines and build the loop.
-    session["error"] = "The planning loop isn't built yet — see the TODO in agent.py."
+    import re
+
+    # A small, deterministic parser keeps search inputs inspectable. The
+    # description excludes a recognized size and price ceiling.
+    size_match = re.search(r"\bsize\s+([a-zA-Z0-9]+(?:/[a-zA-Z0-9]+)?)\b", query, re.I)
+    price_match = re.search(
+        r"\b(?:under|below|up\s+to|at\s+most|max(?:imum)?)\s*\$?\s*(\d+(?:\.\d{1,2})?)"
+        r"|\$\s*(\d+(?:\.\d{1,2})?)",
+        query,
+        re.I,
+    )
+    size = size_match.group(1) if size_match else None
+    max_price = None
+    if price_match:
+        max_price = float(next(group for group in price_match.groups() if group is not None))
+
+    description = query
+    for match in (size_match, price_match):
+        if match:
+            description = description.replace(match.group(0), " ")
+    description = re.sub(r"\b(?:under|below|up\s+to|at\s+most|max(?:imum)?)\b", " ", description, flags=re.I)
+    description = re.sub(r"\b(?:in|size)\b", " ", description, flags=re.I)
+    description = " ".join(description.split()).strip(" ,.-")
+    session["parsed"] = {"description": description, "size": size, "max_price": max_price}
+
+    iteration = 0
+    iteration += 1
+    trace.check_iterations(iteration)
+    results = search_listings(description, size=size, max_price=max_price)
+    session["search_results"] = results
+    if not results:
+        session["error"] = (
+            "I couldn't find a listing that matches. Try changing the item keywords, "
+            "size, or maximum price."
+        )
+        return session
+
+    session["selected_item"] = results[0]
+    iteration += 1
+    trace.check_iterations(iteration)
+    session["outfit_suggestion"] = suggest_outfit(
+        session["selected_item"], session["wardrobe"]
+    )
+
+    iteration += 1
+    trace.check_iterations(iteration)
+    session["fit_card"] = create_fit_card(
+        session["outfit_suggestion"], session["selected_item"]
+    )
     return session
 
 
@@ -145,3 +192,4 @@ if __name__ == "__main__":
         "\nThe second one should stop before the fit card. If both paths look "
         "the same,\nthe branch isn't doing anything yet."
     )
+
