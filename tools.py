@@ -20,7 +20,9 @@ That last line is what your loop branches on. "Returns a list" earns nothing —
 the description has to say what is *in* the list.
 """
 
-import config  # noqa: F401 — you'll use this in search_listings
+import re
+
+import config
 from generate import generate
 from utils.data_loader import load_listings
 
@@ -78,8 +80,54 @@ def search_listings(
     Test it from a terminal before you move on:
         python -c "from tools import search_listings; print(search_listings('graphic tee', max_price=30))"
     """
-    # TODO: replace this with your implementation
-    return []
+    listings = load_listings()
+    requested = {
+        word.casefold()
+        for word in re.findall(r"[a-zA-Z0-9]+", description)
+        if len(word) > 1
+    }
+
+    def size_tokens(value) -> set[str]:
+        # Treat slash sizes as alternatives: M matches S/M and M/L, but S
+        # does not accidentally match XL and "s" does not match "US 9".
+        parts = re.findall(r"[a-zA-Z]+\d*(?:/[a-zA-Z]+\d*)*|\d+(?:\.\d+)?", str(value))
+        return {
+            part.casefold()
+            for token in parts
+            for part in token.split("/")
+        }
+
+    matches = []
+    for listing in listings:
+        try:
+            price = float(listing.get("price"))
+        except (TypeError, ValueError):
+            continue
+        if max_price is not None and price > float(max_price):
+            continue
+        if size and not (size_tokens(size) & size_tokens(listing.get("size", ""))):
+            continue
+
+        def words(value) -> set[str]:
+            if isinstance(value, list):
+                value = " ".join(map(str, value))
+            return {word.casefold() for word in re.findall(r"[a-zA-Z0-9]+", str(value))}
+
+        # A title match should count more than a passing keyword in a long
+        # description, so the agent's first result is a useful top match.
+        score = (
+            3 * len(requested & words(listing.get("title", "")))
+            + 2 * len(requested & words(listing.get("style_tags", [])))
+            + len(requested & words(listing.get("description", "")))
+            + len(requested & words(listing.get("category", "")))
+            + len(requested & words(listing.get("colors", [])))
+            + len(requested & words(listing.get("brand") or ""))
+        )
+        if score:
+            matches.append((score, listing))
+
+    matches.sort(key=lambda pair: (-pair[0], float(pair[1].get("price", 0))))
+    return [listing for _, listing in matches[: config.SEARCH_RESULT_LIMIT]]
 
 
 # ── Tool 2: suggest_outfit ────────────────────────────────────────────────────
@@ -112,8 +160,41 @@ def suggest_outfit(new_item: dict, wardrobe: dict) -> str:
     Test it from a terminal before you move on:
         python -c "from tools import suggest_outfit; from utils.data_loader import get_example_wardrobe, load_listings; print(suggest_outfit(load_listings()[0], get_example_wardrobe()))"
     """
-    # TODO: replace this with your implementation
-    return ""
+    owned_items = wardrobe.get("items", []) if isinstance(wardrobe, dict) else []
+    item_details = (
+        f"{new_item.get('title', 'the item')} ({new_item.get('category', 'clothing')}, "
+        f"size {new_item.get('size', 'unspecified')}, ${new_item.get('price', 'unknown')})"
+    )
+    if owned_items:
+        wardrobe_lines = []
+        for item in owned_items:
+            name = item.get("name", item.get("title", "wardrobe item"))
+            details = []
+            for field in ("category", "colors", "style_tags", "notes"):
+                value = item.get(field)
+                if value:
+                    if isinstance(value, list):
+                        value = ", ".join(map(str, value))
+                    details.append(f"{field.replace('_', ' ')}: {value}")
+            suffix = f" ({'; '.join(details)})" if details else ""
+            wardrobe_lines.append(f"- {name}{suffix}")
+        wardrobe_text = "\n".join(wardrobe_lines)
+        prompt = (
+            f"Suggest one or two wearable outfits around {item_details}. "
+            "Use specific pieces from the user's wardrobe and explain briefly why they work. "
+            "Do not invent wardrobe items.\n\nWardrobe:\n" + wardrobe_text
+        )
+    else:
+        prompt = (
+            f"Give practical general styling advice for {item_details}. "
+            "Suggest one or two outfit combinations using common basics, and make clear "
+            "that the user has not provided a wardrobe list."
+        )
+    response = generate(
+        prompt,
+        system="You are a practical personal stylist. Keep suggestions specific, concise, and wearable.",
+    )
+    return response.strip() or f"Try pairing {item_details} with simple neutral basics and comfortable shoes."
 
 
 # ── Tool 3: create_fit_card ───────────────────────────────────────────────────
@@ -152,5 +233,23 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
     Test it from a terminal before you move on:
         python -c "from tools import create_fit_card; from utils.data_loader import load_listings; print(create_fit_card('jeans and white sneakers', load_listings()[0]))"
     """
-    # TODO: replace this with your implementation
-    return ""
+    if not outfit or not outfit.strip():
+        return "I couldn't create a fit card because no outfit suggestion was provided."
+
+    prompt = (
+        "Write a natural social caption in 2 to 4 sentences for this thrift find. "
+        "Mention the item title, its price, and its marketplace exactly once each; "
+        "capture a specific vibe without sounding like a product listing.\n\n"
+        f"Item: {new_item.get('title', 'Thrift find')}\n"
+        f"Price: ${new_item.get('price', 'unknown')}\n"
+        f"Platform: {new_item.get('platform', 'unknown')}\n"
+        f"Outfit idea: {outfit}"
+    )
+    response = generate(
+        prompt,
+        system="Write only the finished caption. Do not add a heading or quotation marks.",
+    )
+    return response.strip() or (
+        f"Found {new_item.get('title', 'a thrift find')} for ${new_item.get('price', 'unknown')} "
+        f"on {new_item.get('platform', 'a marketplace')}. The look feels easy and personal."
+    )
