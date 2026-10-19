@@ -85,85 +85,73 @@ FitFindr takes a plain-language request for a secondhand clothing item, such as 
 
 ## Planning Loop
 
-<!-- Your branch rule, stated as a rule — the condition AND both paths — plus
-     the file and function that holds it.
-
-     Like this:
-       "If search_listings returns an empty list, put a message in the session
-        and stop. Otherwise take the first result and go to suggest_outfit."
-        — agent.py::run_agent
-
-     The grader checks your code against what you claim here, so the file and
-     function have to be real. -->
-
-**Branch rule:**
+**Branch rule:** If `search_listings` returns an empty list, the agent stores a message suggesting the shopper change the keywords, size, or maximum price and stops before calling `suggest_outfit`. Otherwise it saves the first result as `selected_item`, sends that item and the wardrobe to `suggest_outfit`, then sends the suggestion and same item to `create_fit_card`.
 
 **Where it lives:** `agent.py::run_agent`
 
-**How the query is parsed:** <!-- regex, string splitting, or asking the model — say which -->
+**How the query is parsed:** Regular expressions extract a `size` phrase and a dollar amount/price ceiling; the remaining words become the description. The implementation is deterministic and does not use a model to parse.
 
-**What moves through the session:** <!-- which fields, in what order -->
+**What moves through the session:** `parsed` → `search_results` → `selected_item` and `wardrobe` → `outfit_suggestion` → `fit_card`. If search is empty, `error` is populated and the later fields remain `None`.
 
 ---
 
 ## Sample Run
 
-<!-- Two things go here.
-
-     1. One FULL query and its output, pasted as text.
-     2. Your three per-tool terminal tests — the command and what it printed. -->
+The listings and wardrobe loader are now included, and search and loop checks were run against the real 40-listing dataset. This execution environment does not have the project's `python-dotenv` or `google-genai` packages installed, so the model-backed tools could only be checked with a local mock response. The output below is still waiting for a run with the real model; do not submit mock text as model output. After setup, run the commands and paste their actual output here.
 
 **One full query**
 
 ```
-$ python app.py ask '...'
-
+$ python app.py ask 'vintage graphic tee under $30'
+[Paste the actual terminal output here after running the command.]
 ```
 
 **The three tools, tested one at a time**
 
 ```
-$ python -c "from tools import search_listings; print(search_listings('graphic tee', max_price=30))"
-
+$ python -c "from tools import search_listings; import json; print(json.dumps(search_listings('2003 tour bootleg', max_price=30), ensure_ascii=False, indent=2))"
+[
+  {
+    "id": "lst_006",
+    "title": "Graphic Tee — 2003 Tour Bootleg Style",
+    "description": "Vintage-style bootleg tee with faded graphic. Slightly boxy fit. 100% cotton, soft and worn-in.",
+    "category": "tops",
+    "style_tags": ["graphic tee", "vintage", "grunge", "streetwear", "band tee"],
+    "size": "L",
+    "condition": "good",
+    "price": 24.0,
+    "colors": ["black"],
+    "brand": null,
+    "platform": "depop"
+  }
+]
 ```
 
 ```
-$ python -c "from tools import suggest_outfit; ..."
-
+$ python -c "from tools import suggest_outfit; from utils.data_loader import get_example_wardrobe, load_listings; print(suggest_outfit(load_listings()[0], get_example_wardrobe()))"
+[Paste actual output here.]
 ```
 
 ```
-$ python -c "from tools import create_fit_card; ..."
-
+$ python -c "from tools import create_fit_card; from utils.data_loader import load_listings; print(create_fit_card('jeans and white sneakers', load_listings()[0]))"
+[Paste actual output here.]
 ```
 
 ---
 
 ## How I Used AI
 
-<!-- Two specific moments. What you asked, what came back, what you changed.
-
-     "I used Claude to help me code" is not enough.
-
-     "I gave Claude my search_listings spec. It returned None on no match
-     instead of an empty list, so I changed it" is the level we want. -->
-
 **Moment 1**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* Help implementing `search_listings` from the starter specification, including size matching and the empty-list case.
+- *What came back:* A keyword-overlap search with explicit size-token matching so a small-size request does not match `XL` or a shoe size like `US 9`.
+- *What I changed:* I used token matching for slash sizes, applied price and size filters before ranking, and kept the required empty result as `[]`.
 
 **Moment 2**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
-
-<!-- ═══════════════════════ UNIT 4 — THE TEST ═══════════════════════
-
-     Don't fill these in during unit 3.
-     ═══════════════════════════════════════════════════════════════════ -->
+- *What I asked for:* Help completing the loop while following the acceptance-criteria instructions about branch and session state.
+- *What came back:* A deterministic query parser and a sequence that stores each tool result in the session before using it in the next step.
+- *What I changed:* I made the no-results branch return a concrete message before the styling tool runs, and the first selected listing is passed to both later tools.
 
 ---
 
